@@ -1,0 +1,107 @@
+{
+	"info": {
+		"_postman_id": "1438a485-6e6b-4fd1-838d-8d50c49e0178",
+		"name": "aws",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "Create sqs sns subscription",
+			"request": {
+				"method": "POST",
+				"header": [],
+				"url": {
+					"raw": "localhost:8080/api/create/services/xyz",
+					"host": [
+						"localhost"
+					],
+					"port": "8080",
+					"path": [
+						"api",
+						"create",
+						"services",
+						"xyz"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Publish multiple sns notification in batch",
+			"request": {
+				"method": "POST",
+				"header": [],
+				"url": {
+					"raw": "localhost:8080/api/sns/batch/publish/arn:aws:sns:ap-south-1:827169409518:xyz/10",
+					"host": [
+						"localhost"
+					],
+					"port": "8080",
+					"path": [
+						"api",
+						"sns",
+						"batch",
+						"publish",
+						"arn:aws:sns:ap-south-1:827169409518:xyz",
+						"10"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "register jms listener",
+			"request": {
+				"method": "POST",
+				"header": [],
+				"url": {
+					"raw": "localhost:8080/api/register/xyz",
+					"host": [
+						"localhost"
+					],
+					"port": "8080",
+					"path": [
+						"api",
+						"register",
+						"xyz"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "delete sqs sns subscription",
+			"request": {
+				"method": "DELETE",
+				"header": [],
+				"url": {
+					"raw": "localhost:8080/api/delete/services?subscriptionArn=arn:aws:sns:ap-south-1:827169409518:abc:4aa2e896-0ef5-4c8b-8797-d2e0a1b28d46&snsTopicArn=arn:aws:sns:ap-south-1:827169409518:abc&queueUrl=https://sqs.ap-south-1.amazonaws.com/827169409518/abc",
+					"host": [
+						"localhost"
+					],
+					"port": "8080",
+					"path": [
+						"api",
+						"delete",
+						"services"
+					],
+					"query": [
+						{
+							"key": "subscriptionArn",
+							"value": "arn:aws:sns:ap-south-1:827169409518:abc:4aa2e896-0ef5-4c8b-8797-d2e0a1b28d46"
+						},
+						{
+							"key": "snsTopicArn",
+							"value": "arn:aws:sns:ap-south-1:827169409518:abc"
+						},
+						{
+							"key": "queueUrl",
+							"value": "https://sqs.ap-south-1.amazonaws.com/827169409518/abc"
+						}
+					]
+				}
+			},
+			"response": []
+		}
+	]
+}

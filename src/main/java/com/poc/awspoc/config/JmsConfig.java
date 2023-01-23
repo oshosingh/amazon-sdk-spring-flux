@@ -25,9 +25,8 @@ public class JmsConfig {
 		factory.setConnectionFactory(sqsConfig.getConnectionFactory());
 		factory.setSessionAcknowledgeMode(Session.CLIENT_ACKNOWLEDGE);
 		factory.setDestinationResolver(new DynamicDestinationResolver());
-		
 		factory.setErrorHandler(error -> {
-			log.atError().addArgument(error.getMessage()).log("exception in jms : {}");
+			//log.atError().addArgument(error.getMessage()).log("exception in jms : {}");
 		});
 		
 //		factory.setSessionTransacted(true);

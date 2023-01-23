@@ -13,6 +13,8 @@ import org.springframework.jms.config.JmsListenerEndpointRegistrar;
 import org.springframework.jms.config.SimpleJmsListenerEndpoint;
 
 import com.poc.awspoc.config.JmsConfig;
+import com.poc.awspoc.config.RateLimiter;
+import com.poc.awspoc.exceptions.RateLimitThrottleException;
 
 import lombok.extern.slf4j.Slf4j;
 
@@ -25,6 +27,9 @@ public class DynamicJmsListenerRegistrar implements JmsListenerConfigurer {
 	
 	@Autowired
 	private JmsConfig jmsConfig;
+	
+	@Autowired
+	private RateLimiter rateLimiter;
 	
 	public static AtomicInteger integer = new AtomicInteger(0);
 	
@@ -39,18 +44,12 @@ public class DynamicJmsListenerRegistrar implements JmsListenerConfigurer {
 				String messageText = ((TextMessage) message).getText();
 				
 				// throttle condition
-				if(messageText.contains("exception") && integer.get()<3) {
-					log.atInfo().log("throwing exception");
-					integer.getAndIncrement();
-					try {
-						Thread.sleep(5000);
-					} catch (InterruptedException e) {
-						e.printStackTrace();
-					}
-					throw new RuntimeException();
+				if(!rateLimiter.hasTokens(queueName)) {
+					log.atInfo().addArgument(queueName).log("Throttling message received from queue : {}");
+					throw new RateLimitThrottleException("Too many requests");
 				}
 				
-				log.atInfo().addArgument(messageText).addArgument(queueName).log("Received message : {} from queue : {}");
+				log.atInfo().addArgument(messageText).addArgument(queueName).log("Consumed message : {} from queue : {}");
 				
 			} catch (JMSException e) {
 				log.atError().addArgument(e.getMessage()).addArgument(queueName).log("Exception caught {} while listening to quueue {}");

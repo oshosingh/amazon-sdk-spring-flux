@@ -1,18 +1,23 @@
 package com.poc.awspoc.controller;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.amazonaws.services.sns.AmazonSNS;
 import com.amazonaws.services.sns.model.CreateTopicRequest;
+import com.amazonaws.services.sns.model.PublishBatchRequest;
+import com.amazonaws.services.sns.model.PublishBatchRequestEntry;
 import com.amazonaws.services.sns.util.Topics;
 import com.amazonaws.services.sqs.AmazonSQS;
 import com.amazonaws.services.sqs.model.CreateQueueRequest;
@@ -20,6 +25,7 @@ import com.amazonaws.services.sqs.model.CreateQueueResult;
 import com.amazonaws.services.sqs.model.DeleteMessageRequest;
 import com.amazonaws.services.sqs.model.Message;
 import com.amazonaws.services.sqs.model.ReceiveMessageRequest;
+import com.poc.awspoc.config.RateLimiter;
 import com.poc.awspoc.config.SnsConfig;
 import com.poc.awspoc.config.SqsConfig;
 import com.poc.awspoc.config.listener.DynamicJmsListenerRegistrar;
@@ -27,7 +33,7 @@ import com.poc.awspoc.config.listener.DynamicJmsListenerRegistrar;
 import lombok.extern.slf4j.Slf4j;
 
 @RestController
-@RequestMapping("/sqs")
+@RequestMapping("/api")
 @Slf4j
 public class SqsController {
 	
@@ -39,6 +45,9 @@ public class SqsController {
 	
 	@Autowired
 	private DynamicJmsListenerRegistrar jmsListenerRegistrar;
+	
+	@Autowired
+	private RateLimiter rateLimiter;
 	
 	private String queueUrl = "https://sqs.ap-south-1.amazonaws.com/827169409518/test";
 	
@@ -105,9 +114,47 @@ public class SqsController {
 		
 		log.atInfo().log("Subscribed sns to sqs");
 		
-		sqsClient.sendMessage(createQueueResult.getQueueUrl(), "api message");
+		log.atInfo().log("Adding queue to ratelimiter");
+		rateLimiter.createBucketForCustomer(serviceName);
+		
+		log.atInfo().addArgument(rateLimiter.totalTokens(serviceName)).log("available tokens : {}");
 		
 		return responseMap;
 	}
-
+	
+	@PostMapping("/sns/batch/publish/{topicArn}/{count}")
+	String publishBatchNotification(@PathVariable("topicArn") String topicArn, @PathVariable("count") int count) {
+		AmazonSNS snsClient = snsConfig.getSnsClient();
+		
+		PublishBatchRequest batchRequest = new PublishBatchRequest();
+		batchRequest.withTopicArn(topicArn);
+		
+		List<PublishBatchRequestEntry> batchRequestEntries = new ArrayList<>();
+		
+		for(int i=0; i<count; i++) {
+			PublishBatchRequestEntry entry = new PublishBatchRequestEntry();
+			entry.setId(String.valueOf(i));
+			entry.setMessage("test"+i);
+			batchRequestEntries.add(entry);
+		}
+		
+		batchRequest.setPublishBatchRequestEntries(batchRequestEntries);
+		
+		snsClient.publishBatch(batchRequest);
+		
+		return "Published";
+	}
+	
+	@DeleteMapping("/delete/services")
+	String deleteService(@RequestParam String subscriptionArn, @RequestParam String snsTopicArn, @RequestParam String queueUrl) {
+		
+		AmazonSNS snsClient = snsConfig.getSnsClient();
+		AmazonSQS sqsClient = sqsConfig.getSqsClient();
+		
+		snsClient.unsubscribe(subscriptionArn);
+		snsClient.deleteTopic(snsTopicArn);
+		sqsClient.deleteQueue(queueUrl);
+		
+		return "deleted";
+	}
 }
