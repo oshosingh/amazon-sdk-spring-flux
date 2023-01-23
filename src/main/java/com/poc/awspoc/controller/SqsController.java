@@ -1,22 +1,28 @@
 package com.poc.awspoc.controller;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.jms.config.JmsListenerEndpointRegistrar;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.amazonaws.services.sns.AmazonSNS;
+import com.amazonaws.services.sns.model.CreateTopicRequest;
+import com.amazonaws.services.sns.util.Topics;
 import com.amazonaws.services.sqs.AmazonSQS;
 import com.amazonaws.services.sqs.model.CreateQueueRequest;
+import com.amazonaws.services.sqs.model.CreateQueueResult;
 import com.amazonaws.services.sqs.model.DeleteMessageRequest;
 import com.amazonaws.services.sqs.model.Message;
 import com.amazonaws.services.sqs.model.ReceiveMessageRequest;
+import com.poc.awspoc.config.SnsConfig;
 import com.poc.awspoc.config.SqsConfig;
-import com.poc.awspoc.config.listener.DynamicJmsListener;
+import com.poc.awspoc.config.listener.DynamicJmsListenerRegistrar;
 
 import lombok.extern.slf4j.Slf4j;
 
@@ -29,7 +35,10 @@ public class SqsController {
 	private SqsConfig sqsConfig;
 	
 	@Autowired
-	private DynamicJmsListener jmsListenerRegistrar;
+	private SnsConfig snsConfig;
+	
+	@Autowired
+	private DynamicJmsListenerRegistrar jmsListenerRegistrar;
 	
 	private String queueUrl = "https://sqs.ap-south-1.amazonaws.com/827169409518/test";
 	
@@ -69,6 +78,36 @@ public class SqsController {
 	String registerListener(@PathVariable("name") String queueName) {
 		jmsListenerRegistrar.createListener(queueName);
 		return "added";
+	}
+	
+	@PostMapping("/create/services/{name}")
+	Map<String, String> create(@PathVariable("name") String serviceName) {
+		
+		Map<String, String> responseMap = new HashMap<>();
+		
+		AmazonSNS snsClient = snsConfig.getSnsClient();
+		CreateTopicRequest snsRequest = new CreateTopicRequest(serviceName);
+		String snsTopicArn = snsClient.createTopic(snsRequest).getTopicArn();
+		
+		responseMap.put("Sns topic arn", snsTopicArn);
+		log.atInfo().log("Sns topic created");
+		
+		AmazonSQS sqsClient = sqsConfig.getSqsClient();
+		CreateQueueRequest sqsRequest = new CreateQueueRequest(serviceName);
+		CreateQueueResult createQueueResult = sqsClient.createQueue(sqsRequest);
+		
+		responseMap.put("Sqs queue url", createQueueResult.getQueueUrl());
+		log.atInfo().log("Create sqs queue");
+		
+		String subscriptionArn = Topics.subscribeQueue(snsClient, sqsClient, snsTopicArn, createQueueResult.getQueueUrl());
+		
+		responseMap.put("Subscription Arn", subscriptionArn);
+		
+		log.atInfo().log("Subscribed sns to sqs");
+		
+		sqsClient.sendMessage(createQueueResult.getQueueUrl(), "api message");
+		
+		return responseMap;
 	}
 
 }

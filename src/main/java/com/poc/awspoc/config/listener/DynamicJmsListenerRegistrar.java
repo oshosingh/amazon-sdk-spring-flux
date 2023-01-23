@@ -1,5 +1,7 @@
 package com.poc.awspoc.config.listener;
 
+import java.util.concurrent.atomic.AtomicInteger;
+
 import javax.jms.JMSException;
 import javax.jms.TextMessage;
 
@@ -17,26 +19,39 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 @Configuration
 @EnableJms
-public class DynamicJmsListener implements JmsListenerConfigurer {
-	
-	/**
-	 * @TODO
-	 * check if keeping a copy of registrar at global scope can help make it dynamic
-	 */
+public class DynamicJmsListenerRegistrar implements JmsListenerConfigurer {
 	
 	private JmsListenerEndpointRegistrar registrar;
 	
 	@Autowired
 	private JmsConfig jmsConfig;
 	
+	public static AtomicInteger integer = new AtomicInteger(0);
+	
 	public void createListener(String queueName) {
+		
 		SimpleJmsListenerEndpoint endpoint = new SimpleJmsListenerEndpoint();
 		endpoint.setId(queueName);
 		endpoint.setDestination(queueName);
+		
 		endpoint.setMessageListener(message -> {
 			try {
 				String messageText = ((TextMessage) message).getText();
+				
+				// throttle condition
+				if(messageText.contains("exception") && integer.get()<3) {
+					log.atInfo().log("throwing exception");
+					integer.getAndIncrement();
+					try {
+						Thread.sleep(5000);
+					} catch (InterruptedException e) {
+						e.printStackTrace();
+					}
+					throw new RuntimeException();
+				}
+				
 				log.atInfo().addArgument(messageText).addArgument(queueName).log("Received message : {} from queue : {}");
+				
 			} catch (JMSException e) {
 				log.atError().addArgument(e.getMessage()).addArgument(queueName).log("Exception caught {} while listening to quueue {}");
 				e.printStackTrace();
@@ -51,24 +66,5 @@ public class DynamicJmsListener implements JmsListenerConfigurer {
 	public void configureJmsListeners(JmsListenerEndpointRegistrar registrar) {
 		this.registrar = registrar;
 		log.atInfo().log("Saved registrar local");
-		
-//		SimpleJmsListenerEndpoint jmsListenerEndpoint = new SimpleJmsListenerEndpoint();
-//		jmsListenerEndpoint.setId("test");
-//		jmsListenerEndpoint.setDestination("test");
-//		jmsListenerEndpoint.setMessageListener(message -> {
-//			try {
-//				log.atInfo().addArgument(message.getJMSMessageID()).addArgument(message.getJMSDestination())
-//					.log("Received Id : {} Destionation : {}");
-//				log.atInfo().addArgument(((TextMessage) message).getText()).log("message object : {}");
-//				registrar.setContainerFactory(jmsConfig.jmsListenerContainerFactory());
-//			}
-//			catch(JMSException e) {
-//				log.atError().log("exception");
-//				e.printStackTrace();
-//			}
-//		});
-//		
-//		log.atInfo().log("inside configure jms");
-//		registrar.registerEndpoint(jmsListenerEndpoint);
 	}
 }
